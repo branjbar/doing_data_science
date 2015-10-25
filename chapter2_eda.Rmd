@@ -1,0 +1,141 @@
+---
+title: "Doing Data Science (EDA - Chapter2)"
+output: html_document
+author: Bijan Ranjbar-Sahraei
+---
+
+Exploratary Data Analysis of sample datasets.
+
+# Initialization 
+First let's clean up memory
+```{r}
+rm(list=ls())  
+```
+
+This is the Address to data folder
+```{r}
+data_folder <- "/Users/bian/sandbox/doing_data_science-master/dds_datasets/dds_ch2_nyt/"
+```
+
+## Let's play around a bit 
+reading the csv file
+```{r}
+data1 <- read.csv(paste(data_folder, "nyt1.csv", sep=''))
+```
+
+To see how data looks like at the begining and at the end
+```{r}
+head(data1)
+tail(data1)
+```
+
+To get the column names
+```{r}
+colnames(data1)
+```
+
+To get a summary
+```{r}
+summary(data1)
+```
+get a specific columns
+```{r}
+head(data1$Age)
+```
+
+# Ex1. 
+Add a new variable age_group that categorizes users between differen age groups
+```{r}
+data1$age_group <- cut(data1$Age, c(-Inf, 0, 18, 24, 34, 44, 54, 65, Inf))
+head(data1)
+```
+
+Just to check subset of data which doesn't have any age
+```{r}
+head(subset(data1, age_group == "(-Inf,0]"))  # it seems that these guys are not sign in, that's why!
+```
+
+## doBy
+Let's use the "doBy"" package
+To do something on data stratified 'by' some other variables. here we use the summaryBy function
+```{r}
+# install.packages("doBy")  
+library("doBy")  
+siterange <- function(x) {c(length(x), min(x), mean(x), max(x)) }
+siterange(data1$Age)
+summaryBy(Age~age_group, data = data1, FUN=siterange)  # summariszing Age based on age-group 
+```
+
+
+Let's see a summary of everything for each age category
+```{r}
+summaryBy(Gender+Signed_In+Impressions+Clicks~age_group, data=data1)
+```
+*It seems that the just those who haven't signed in has a zero age.*
+
+
+# Ex2.a 
+Plot the distribution of number impressions and click through-rate for the age categories 
+
+## Plotting Impressions based on age category
+let's plot a bit
+```{r}
+# install.packages("ggplot2")
+library(ggplot2)
+ggplot(data1, aes(x=Impressions, fill=age_group)) + geom_histogram(binwidth=1)  # woohoo!!
+ggplot(data1, aes(x=age_group, y=Impressions, fill=age_group)) + geom_boxplot()
+
+```
+
+Let's check data with no impression
+```{r}
+head(summaryBy(Clicks~Impressions, data=data1, FUN=siterange))
+```
+there are 3066 users with no click where the impression is also zero. So, let's remove them.
+
+
+## Click Through Rate (CTR)
+CTR is the number of clicks that your ad receives divided by the number of times your ad is shown expressed as a percentage (clicks / impressions = CTR).
+
+```{r}
+data1$hasimps <- cut(data1$Impressions, c(-Inf, 0, Inf))
+summaryBy(Clicks~hasimps, data=data1, FUN=siterange)
+ggplot(subset(data1,Impressions>0), aes(x=Clicks/Impressions, color=age_group)) + geom_density()
+ggplot(subset(data1,Clicks>0 & Age>0), aes(x=Clicks/Impressions, color=age_group)) + geom_density()
+```
+
+Let's categorize users based on their click behavior
+```{r}
+data1$scode[data1$Impressions == 0] <- "NoImps"
+data1$scode[data1$Impressions > 0] <- "Imps"
+data1$scode[data1$Clicks > 0] <- "Clicks"
+```
+
+convert a column to a factor
+```{r}
+data1$scode <- factor(data1$scode)
+```
+
+look at levels
+```{r}
+clen <- function(x){c(length(x))}
+etable <- summaryBy(Impressions~scode+Gender+age_group, data=data1, FUN=clen)
+etable
+```
+
+# Let's do something serious
+Let's make a cleaned version of data by leaving out the users who are not signed in and also the users who don't have any impressions.
+
+```{r}
+data_cleaned <- subset(data1, Age>0, Impressions>0)
+```
+
+The we add the CTR to the columns
+```{r}
+data_cleaned <- transform(data_cleaned, CTR = Clicks/Impressions)
+```
+
+Let's make a nice plot!
+```{r}
+# qplot(y=CTR, x=Age, data=data_cleaned, geom=c("boxplot", "jitter"))
+```
